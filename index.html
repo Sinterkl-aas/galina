@@ -1,427 +1,1606 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Doolhof in de Tuin</title>
-    <style>
-        :root {
-            --bg-color: #1a2f16;
-            --text-color: #f0fdf4;
-            --wall-color: #2d4a22;
-            --wall-border: #1e3318;
-            --path-color: #8b7355;
-            --fog-color: #0a1208;
-            --visited-path-color: #a08868;
-            --highlight: #ff9f1c;
-            --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Doolhof in de Tuin</title>
+  <style>
+    :root {
+      --bg-color: #1a2f16;
+      --text-color: #f0fdf4;
+      --wall-color: #2d4a22;
+      --wall-border: #1e3318;
+      --path-color: #8b7355;
+      --fog-color: #0a1208;
+      --visited-path-color: #a08868;
+      --highlight: #ff9f1c;
+      --font-main: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-main);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* hoofd-layout */
+    #app {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    #side-panel {
+      width: 280px;
+      max-width: 100%;
+      padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.35);
+      border-right: 4px solid #1e3318;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    h1 {
+      color: #86efac;
+      margin: 0 0 4px;
+      font-size: 1.6rem;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    #subtitle {
+      font-size: 0.8rem;
+      opacity: 0.9;
+      margin-bottom: 6px;
+    }
+
+    #top-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 8px 10px;
+      border-radius: 8px;
+    }
+
+    .top-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .player-score {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.95rem;
+    }
+
+    .player-score .count {
+      color: #ffd700;
+      font-weight: bold;
+    }
+
+    .top-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .small-btn {
+      background-color: rgba(255, 255, 255, 0.15);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 5px 10px;
+      font-size: 0.8rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .small-btn:hover {
+      background-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .small-btn.active {
+      background-color: var(--highlight);
+      border-color: var(--highlight);
+    }
+
+    .instructions {
+      color: #dcfce7;
+      padding: 8px 10px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 8px;
+      font-size: 0.8rem;
+    }
+
+    .controls-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-bottom: 4px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    kbd {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 0.75rem;
+    }
+
+    #game-container {
+      position: relative;
+      flex: 1;
+      margin: 8px;
+      padding: 8px;
+      background: #3a5a2d;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      border: 4px solid #1e3318;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #maze-grid {
+      display: grid;
+      background-color: var(--wall-color);
+      border: 3px solid var(--wall-border);
+    }
+
+    .cell {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: var(--wall-color);
+      position: relative;
+      user-select: none;
+    }
+
+    .cell:not(.path):not(.fog) {
+      background-image: radial-gradient(circle, #3e662f 20%, #2d4a22 80%);
+      border: 1px solid #1e3318;
+    }
+
+    .cell.wall-decoration::before {
+      content: attr(data-decoration);
+      position: absolute;
+      opacity: 0.8;
+    }
+
+    .cell.path {
+      background-color: var(--path-color);
+      border: none;
+    }
+
+    .cell.visited {
+      background-color: var(--visited-path-color);
+    }
+
+    .cell.fog {
+      background-color: var(--fog-color) !important;
+      color: transparent !important;
+      border: none !important;
+      background-image: none !important;
+    }
+
+    .cell.fog::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-color: var(--fog-color);
+      z-index: 10;
+    }
+
+    .cell.fog.exit-cell {
+      border: none !important;
+    }
+
+    .cell.player {
+      z-index: 5;
+    }
+
+    .cell.exit-cell {
+      background-color: #4a7c3f !important;
+      border: 2px dashed #86efac !important;
+    }
+
+    .cell.player.moving {
+      animation: player-bounce 0.15s ease-out;
+    }
+
+    @keyframes player-bounce {
+      from {
+        transform: translateY(0);
+      }
+      to {
+        transform: translateY(-3px);
+      }
+    }
+
+    #overlay,
+    #settings-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      backdrop-filter: blur(5px);
+    }
+
+    .overlay-content {
+      background: #fff;
+      color: #333;
+      padding: 25px;
+      border-radius: 12px;
+      max-width: 90%;
+      width: 450px;
+      text-align: center;
+      box-shadow: 0 0 30px rgba(255, 159, 28, 0.4);
+      border: 4px solid var(--highlight);
+      position: relative;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .bird-icon {
+      font-size: 50px;
+      display: block;
+      margin-bottom: 8px;
+      animation: bounce 1s infinite alternate;
+    }
+
+    @keyframes bounce {
+      from {
+        transform: translateY(0);
+      }
+      to {
+        transform: translateY(-8px);
+      }
+    }
+
+    .overlay-content h2 {
+      color: #d97706;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+
+    .overlay-content .asking-player {
+      font-size: 1rem;
+      margin-bottom: 8px;
+      color: #666;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      font-size: 16px;
+      width: 90%;
+      margin: 10px 0;
+      border: 2px solid #cbd5e1;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--highlight);
+    }
+
+    button {
+      background-color: var(--highlight);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.1s, background-color 0.2s;
+    }
+
+    button:hover {
+      background-color: #e88b0b;
+      transform: scale(1.02);
+    }
+
+    #message-area {
+      min-height: 20px;
+      margin-top: 10px;
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    #win-screen {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(26, 26, 46, 0.95);
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+      color: white;
+      border-radius: 8px;
+    }
+
+    #win-screen h2 {
+      font-size: 2em;
+      color: #ffd700;
+      margin-bottom: 15px;
+    }
+
+    #win-screen .winners {
+      font-size: 2.5em;
+      margin-bottom: 15px;
+    }
+
+    #settings-content {
+      text-align: left;
+    }
+    #settings-content h2 {
+      text-align: center;
+    }
+
+    .question-list {
+      max-height: 300px;
+      overflow-y: auto;
+      margin: 15px 0;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+
+    .question-item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .question-item:last-child {
+      border-bottom: none;
+    }
+
+    .question-item .q-text {
+      flex: 1;
+    }
+
+    .question-item .q-answer {
+      color: #22c55e;
+      font-weight: bold;
+      min-width: 80px;
+    }
+
+    .question-item .delete-btn {
+      background: #ef4444;
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+
+    .add-question-form {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 2px solid #eee;
+    }
+
+    .add-question-form input {
+      margin: 0;
+    }
+
+    .settings-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 15px;
+    }
+
+    .settings-buttons .cancel-btn {
+      background: #6b7280;
+    }
+
+    .gift-settings {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 2px solid #eee;
+      font-size: 0.9rem;
+    }
+
+    .gift-row {
+      margin-top: 6px;
+    }
+
+    .gift-row label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .gift-row select {
+      flex: 1;
+      padding: 4px 6px;
+      border-radius: 4px;
+      border: 1px solid #cbd5e1;
+    }
+
+    /* mobiel fallback: alles onder elkaar */
+    @media (max-width: 800px) {
+      #app {
+        flex-direction: column;
+      }
+      #side-panel {
+        width: 100%;
+        border-right: none;
+        border-bottom: 4px solid #1e3318;
+        flex-direction: column;
+      }
+      #game-container {
+        margin: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="side-panel">
+      <div>
+        <h1>Doolhof in de Tuin 🌿</h1>
+        <div id="subtitle">
+          Vind samen de cadeaus, beantwoord de vogeltjes goed en zoek de uitgang.
+        </div>
+      </div>
+
+      <div id="top-bar">
+        <div class="top-row">
+          <div class="player-score">
+            🧑🏽‍🦱 Max: <span class="count" id="max-gifts">0</span> 🎁
+          </div>
+          <div class="player-score">
+            👩🏻‍🦰 Galina: <span class="count" id="galina-gifts">0</span> 🎁
+          </div>
+        </div>
+        <div class="top-row">
+          <div class="player-score">
+            Uitgang: <span id="exit-status">🔒</span>
+            <span id="gifts-needed">(0/2)</span>
+          </div>
+        </div>
+        <div class="top-buttons">
+          <button
+            class="small-btn active"
+            id="fog-toggle"
+            onclick="toggleFog()"
+          >
+            Fog: Aan
+          </button>
+          <button class="small-btn" onclick="openSettings()">⚙️ Vragen</button>
+          <button class="small-btn" onclick="regenerateMaze()">
+            🔄 Genereer doolhof
+          </button>
+        </div>
+      </div>
+
+      <div class="instructions">
+        <div class="controls-row">
+          <div class="control-group">
+            🧑🏽‍🦱 Max:
+            <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd>
+          </div>
+          <div class="control-group">
+            👩🏻‍🦰 Galina:
+            <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
+          </div>
+        </div>
+        <div style="margin-top: 4px; font-size: 0.75rem; opacity: 0.9">
+          Je mag óf het goede woord typen, óf gewoon A / B.
+        </div>
+      </div>
+    </div>
+
+    <div id="game-container">
+      <div id="maze-grid"></div>
+      <div id="win-screen">
+        <h2>Gefeliciteerd! 🎉</h2>
+        <div class="winners" id="winners-display">🧑🏽‍🦱 👩🏻‍🦰</div>
+        <p id="win-message">Jullie hebben de uitgang gevonden!</p>
+        <br />
+        <button onclick="resetGame()">Opnieuw spelen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay vraag -->
+  <div id="overlay">
+    <div class="overlay-content">
+      <div class="bird-icon">🐦</div>
+      <h2 id="question-title">De Vogel vraagt...</h2>
+      <p class="asking-player" id="asking-player"></p>
+      <p id="question-text">Hier komt de vraag...</p>
+      <input
+        type="text"
+        id="answer-input"
+        placeholder="Typ A, B of het goede woord..."
+        autocomplete="off"
+      />
+      <div id="message-area"></div>
+      <br />
+      <button onclick="checkAnswer()">Beantwoord</button>
+    </div>
+  </div>
+
+  <!-- Overlay settings -->
+  <div id="settings-overlay">
+    <div class="overlay-content" id="settings-content">
+      <h2>⚙️ Vragen & Cadeaus</h2>
+      <p style="color: #666; font-size: 0.9rem">
+        Bewerk de vragen en kies waar de cadeaus ongeveer liggen.
+      </p>
+
+      <div class="question-list" id="question-list"></div>
+
+      <div class="add-question-form">
+        <strong>Nieuwe vraag toevoegen:</strong>
+        <input type="text" id="new-question" placeholder="Vraag..." />
+        <input
+          type="text"
+          id="new-answer"
+          placeholder="Antwoord (woord, niet A/B)..."
+        />
+        <button onclick="addQuestion()">+ Toevoegen</button>
+      </div>
+
+      <div class="gift-settings">
+        <strong>Posities cadeaus:</strong>
+        <div class="gift-row">
+          <label>
+            Cadeau 1:
+            <select id="gift-zone-1">
+              <option value="bottomLeft">Hoek linksonder</option>
+              <option value="topLeft">Hoek linksboven</option>
+              <option value="topRight">Hoek rechtsboven</option>
+              <option value="bottomRight">Hoek rechtsonder</option>
+              <option value="center">Midden</option>
+              <option value="random">Willekeurig</option>
+            </select>
+          </label>
+        </div>
+        <div class="gift-row">
+          <label>
+            Cadeau 2:
+            <select id="gift-zone-2">
+              <option value="topRight">Hoek rechtsboven</option>
+              <option value="topLeft">Hoek linksboven</option>
+              <option value="bottomLeft">Hoek linksonder</option>
+              <option value="bottomRight">Hoek rechtsonder</option>
+              <option value="center">Midden</option>
+              <option value="random">Willekeurig</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-buttons">
+        <button class="cancel-btn" onclick="closeSettings()">Sluiten</button>
+        <button onclick="saveAndRestart()">Opslaan &amp; Herstarten</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const WALL = 0;
+    const PATH = 1;
+    const START = 2;
+    const GOAL = 3;
+    const BIRD = 4;
+    const EXIT = 5;
+
+    const MAX_ICON = "🧑🏽‍🦱";
+    const GALINA_ICON = "👩🏻‍🦰";
+    const GIFT_ICON = "🎁";
+    const BIRD_ICON = "🐦";
+    const EXIT_ICON = "🚪";
+
+    const MAZE_WIDTH = 41;
+    const MAZE_HEIGHT = 25;
+    const NUM_BIRDS = 10;
+    const NUM_GIFTS = 2;
+
+    let giftZone1 = "bottomLeft";
+    let giftZone2 = "topRight";
+
+    let questions = [
+      {
+        question:
+          "Welke vogel is uitgeroepen tot Nationale Vogel van Nederland? A: grutto B: kievit",
+        answer: "grutto",
+      },
+      {
+        question:
+          "Welke weidevogel laat in het voorjaar de roep 'grutto-grutto' horen? A: grutto B: wulp",
+        answer: "grutto",
+      },
+      {
+        question:
+          "Welke meeuw is langs de Nederlandse kust de meest algemene broedvogel? A: zilvermeeuw B: stormmeeuw",
+        answer: "zilvermeeuw",
+      },
+      {
+        question:
+          "Wat is de kleinste uilensoort die in Nederland broedt? A: steenuil B: bosuil",
+        answer: "steenuil",
+      },
+      {
+        question:
+          "Welke specht heeft géén rood op de kruin bij het vrouwtje? A: grote bonte specht B: middelste bonte specht",
+        answer: "grote bonte specht",
+      },
+      {
+        question:
+          "Welke vogel is een typische duinbroeder langs de Nederlandse kust? A: tapuit B: kneu",
+        answer: "tapuit",
+      },
+      {
+        question:
+          "Welke ganssoort overwintert massaal op Nederlandse graslanden? A: kolgans B: nijlgans",
+        answer: "kolgans",
+      },
+      {
+        question:
+          "Welke zwaluw zie je het vaakst laag boven weilanden insecten vangend? A: boerenzwaluw B: huiszwaluw",
+        answer: "boerenzwaluw",
+      },
+      {
+        question:
+          "Welke zangvogel staat bekend om zijn gevarieerde en luide zang in struiken en hagen? A: zanglijster B: merel",
+        answer: "zanglijster",
+      },
+      {
+        question:
+          "Welke vogel foerageert vaak onder koeien in het weiland? A: spreeuw B: veldleeuwerik",
+        answer: "spreeuw",
+      },
+    ];
+
+    const decorations = ["🌸", "🌺", "🌻", "🌼", "🌷", "🌿", "🍀", "🌱", "🍄"];
+
+    let map = [];
+    let visited = [];
+    let wallDecorations = [];
+    let cellSize = 20;
+    let fogEnabled = true;
+
+    let players = {
+      max: { x: 1, y: 1, gifts: 0, icon: MAX_ICON, name: "Max" },
+      galina: { x: 1, y: 1, gifts: 0, icon: GALINA_ICON, name: "Galina" },
+    };
+
+    let startPos = { x: 1, y: 1 };
+    let giftPositions = [];
+    let birdPositions = [];
+    let exitPos = { x: 1, y: 1 };
+    let totalGiftsCollected = 0;
+    let exitUnlocked = false;
+    let isGameActive = true;
+    let currentQuestionIndex = -1;
+    let currentBirdPos = null;
+    let currentPlayer = null;
+
+    const gridEl = document.getElementById("maze-grid");
+    const overlayEl = document.getElementById("overlay");
+    const settingsOverlayEl = document.getElementById("settings-overlay");
+    const questionTextEl = document.getElementById("question-text");
+    const answerInputEl = document.getElementById("answer-input");
+    const messageAreaEl = document.getElementById("message-area");
+    const winScreenEl = document.getElementById("win-screen");
+    const maxGiftsEl = document.getElementById("max-gifts");
+    const galinaGiftsEl = document.getElementById("galina-gifts");
+    const exitStatusEl = document.getElementById("exit-status");
+    const giftsNeededEl = document.getElementById("gifts-needed");
+    const askingPlayerEl = document.getElementById("asking-player");
+    const winnersDisplayEl = document.getElementById("winners-display");
+    const winMessageEl = document.getElementById("win-message");
+    const fogToggleEl = document.getElementById("fog-toggle");
+    const questionListEl = document.getElementById("question-list");
+    const giftZone1Select = document.getElementById("gift-zone-1");
+    const giftZone2Select = document.getElementById("gift-zone-2");
+
+    function calculateCellSize() {
+      const container = document.getElementById("game-container");
+      const availableWidth = container.clientWidth - 20;
+      const availableHeight = container.clientHeight - 20;
+
+      const cellW = Math.floor(availableWidth / MAZE_WIDTH);
+      const cellH = Math.floor(availableHeight / MAZE_HEIGHT);
+
+      cellSize = Math.max(14, Math.min(cellW, cellH, 34));
+      return cellSize;
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function addDeadEndsAndClearings(maze, options = {}) {
+      const {
+        shortBranches = 120,
+        longBranches = 10,
+        longMin = 4,
+        longMax = 8,
+        clearings = 4,
+      } = options;
+
+      const height = maze.length;
+      const width = maze[0].length;
+      const dirs = [
+        { dx: 0, dy: 1 },
+        { dx: 1, dy: 0 },
+        { dx: 0, dy: -1 },
+        { dx: -1, dy: 0 },
+      ];
+
+      // korte zijtakjes
+      let candidates = [];
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          if (maze[y][x] === PATH) {
+            let wallNeighbors = [];
+            dirs.forEach(({ dx, dy }) => {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (maze[ny][nx] === WALL) {
+                wallNeighbors.push({ x: nx, y: ny });
+              }
+            });
+            if (wallNeighbors.length >= 2) {
+              candidates.push({ x, y, wallNeighbors });
+            }
+          }
+        }
+      }
+
+      shuffle(candidates);
+      let shortCount = 0;
+
+      for (let c of candidates) {
+        if (shortCount >= shortBranches) break;
+
+        const possibleWalls = c.wallNeighbors.filter((w) => {
+          let pathCount = 0;
+          dirs.forEach(({ dx, dy }) => {
+            const nx = w.x + dx;
+            const ny = w.y + dy;
+            if (
+              ny >= 0 &&
+              ny < height &&
+              nx >= 0 &&
+              nx < width &&
+              maze[ny][nx] === PATH
+            ) {
+              pathCount++;
+            }
+          });
+          return pathCount === 1;
+        });
+
+        if (possibleWalls.length === 0) continue;
+
+        const chosen =
+          possibleWalls[Math.floor(Math.random() * possibleWalls.length)];
+        maze[chosen.y][chosen.x] = PATH;
+        shortCount++;
+      }
+
+      // langere dead-ends
+      shuffle(candidates);
+      let longCount = 0;
+
+      for (let c of candidates) {
+        if (longCount >= longBranches) break;
+
+        const baseWalls = dirs
+          .map(({ dx, dy }) => ({
+            x: c.x + dx,
+            y: c.y + dy,
+            dx,
+            dy,
+          }))
+          .filter(
+            (w) =>
+              w.x > 1 &&
+              w.x < width - 1 &&
+              w.y > 1 &&
+              w.y < height - 1 &&
+              maze[w.y][w.x] === WALL
+          );
+
+        if (baseWalls.length === 0) continue;
+
+        const start =
+          baseWalls[Math.floor(Math.random() * baseWalls.length)];
+        let len = Math.floor(Math.random() * (longMax - longMin + 1)) + longMin;
+
+        let cx = start.x;
+        let cy = start.y;
+        let dx = start.dx;
+        let dy = start.dy;
+
+        for (let step = 0; step < len; step++) {
+          if (cx <= 1 || cx >= width - 1 || cy <= 1 || cy >= height - 1) break;
+          if (maze[cy][cx] !== PATH && maze[cy][cx] !== WALL) break;
+
+          if (maze[cy][cx] === WALL) maze[cy][cx] = PATH;
+
+          if (Math.random() < 0.1) {
+            const turnDirs = dirs.filter(
+              (d) => d.dx !== -dx || d.dy !== -dy
+            );
+            const turn = turnDirs[Math.floor(Math.random() * turnDirs.length)];
+            dx = turn.dx;
+            dy = turn.dy;
+          }
+
+          cx += dx;
+          cy += dy;
         }
 
-        * { box-sizing: border-box; }
+        longCount++;
+      }
 
-        body {
-            font-family: var(--font-main);
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            height: 100vh;
-            overflow: hidden;
+      // kleine pleintjes
+      let pathCells = [];
+      for (let y = 2; y < height - 2; y++) {
+        for (let x = 2; x < width - 2; x++) {
+          if (maze[y][x] === PATH) {
+            pathCells.push({ x, y });
+          }
+        }
+      }
+      shuffle(pathCells);
+
+      let madeClearings = 0;
+      for (let cell of pathCells) {
+        if (madeClearings >= clearings) break;
+
+        const { x, y } = cell;
+        for (let dy2 = 0; dy2 <= 1; dy2++) {
+          for (let dx2 = 0; dx2 <= 1; dx2++) {
+            const nx = x + dx2;
+            const ny = y + dy2;
+            if (
+              nx > 0 &&
+              nx < width - 1 &&
+              ny > 0 &&
+              ny < height - 1
+            ) {
+              maze[ny][nx] = PATH;
+            }
+          }
+        }
+        madeClearings++;
+      }
+    }
+
+    function generateMaze(width, height) {
+      let newMap = [];
+      for (let y = 0; y < height; y++) {
+        let row = [];
+        for (let x = 0; x < width; x++) {
+          row.push(WALL);
+        }
+        newMap.push(row);
+      }
+
+      const isInBounds = (x, y) =>
+        x > 0 && x < width - 1 && y > 0 && y < height - 1;
+
+      const dirs = [
+        { dx: 0, dy: -2 },
+        { dx: 2, dy: 0 },
+        { dx: 0, dy: 2 },
+        { dx: -2, dy: 0 },
+      ];
+
+      function carve(x, y) {
+        newMap[y][x] = PATH;
+        const shuffledDirs = shuffle([...dirs]);
+        for (let dir of shuffledDirs) {
+          const nx = x + dir.dx;
+          const ny = y + dir.dy;
+          if (isInBounds(nx, ny) && newMap[ny][nx] === WALL) {
+            newMap[y + dir.dy / 2][x + dir.dx / 2] = PATH;
+            carve(nx, ny);
+          }
+        }
+      }
+
+      carve(1, 1);
+      newMap[1][1] = START;
+      startPos = { x: 1, y: 1 };
+
+      let allPathCells = [];
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          if (newMap[y][x] === PATH) {
+            allPathCells.push({ x, y });
+          }
+        }
+      }
+
+      giftPositions = [];
+
+      function chooseCellInZone(allCells, zoneName, usedCells) {
+        const notUsed = allCells.filter(
+          (c) =>
+            !usedCells.some((u) => u.x === c.x && u.y === c.y) &&
+            !(c.x === startPos.x && c.y === startPos.y)
+        );
+
+        let filtered;
+        const cornerMarginX = Math.floor(width * 0.25);
+        const cornerMarginY = Math.floor(height * 0.25);
+
+        switch (zoneName) {
+          case "topLeft":
+            filtered = notUsed.filter(
+              (c) =>
+                c.x >= 1 &&
+                c.x <= cornerMarginX &&
+                c.y >= 1 &&
+                c.y <= cornerMarginY
+            );
+            break;
+          case "topRight":
+            filtered = notUsed.filter(
+              (c) =>
+                c.x >= width - cornerMarginX - 1 &&
+                c.x < width - 1 &&
+                c.y >= 1 &&
+                c.y <= cornerMarginY
+            );
+            break;
+          case "bottomLeft":
+            filtered = notUsed.filter(
+              (c) =>
+                c.x >= 1 &&
+                c.x <= cornerMarginX &&
+                c.y >= height - cornerMarginY - 1 &&
+                c.y < height - 1
+            );
+            break;
+          case "bottomRight":
+            filtered = notUsed.filter(
+              (c) =>
+                c.x >= width - cornerMarginX - 1 &&
+                c.x < width - 1 &&
+                c.y >= height - cornerMarginY - 1 &&
+                c.y < height - 1
+            );
+            break;
+          case "center":
+            filtered = notUsed.filter(
+              (c) =>
+                c.x >= Math.floor(width * 0.3) &&
+                c.x <= Math.floor(width * 0.7) &&
+                c.y >= Math.floor(height * 0.3) &&
+                c.y <= Math.floor(height * 0.7)
+            );
+            break;
+          case "random":
+          default:
+            filtered = [...notUsed];
+            break;
         }
 
-        /* Nieuw: hoofd-layout met zijpaneel links en doolhof rechts */
-        #app {
-            display: flex;
-            height: 100vh;
-            width: 100vw;
+        if (filtered.length === 0) {
+          filtered = [...notUsed];
+        }
+        shuffle(filtered);
+        return filtered[0] || null;
+      }
+
+      let usedGiftCells = [];
+
+      const gift1 = chooseCellInZone(allPathCells, giftZone1, usedGiftCells);
+      if (gift1) {
+        newMap[gift1.y][gift1.x] = GOAL;
+        giftPositions.push({ x: gift1.x, y: gift1.y });
+        usedGiftCells.push(gift1);
+      }
+
+      const gift2 = chooseCellInZone(allPathCells, giftZone2, usedGiftCells);
+      if (gift2) {
+        newMap[gift2.y][gift2.x] = GOAL;
+        giftPositions.push({ x: gift2.x, y: gift2.y });
+        usedGiftCells.push(gift2);
+      }
+
+      let bottomRightCells = allPathCells.filter(
+        (c) =>
+          c.x >= Math.floor(width * 0.6) &&
+          c.x < width - 1 &&
+          c.y >= Math.floor(height * 0.6) &&
+          c.y < height - 1 &&
+          !giftPositions.some((g) => g.x === c.x && g.y === c.y)
+      );
+      shuffle(bottomRightCells);
+      if (bottomRightCells.length > 0) {
+        const exit = bottomRightCells[0];
+        newMap[exit.y][exit.x] = EXIT;
+        exitPos = { x: exit.x, y: exit.y };
+      }
+
+      addDeadEndsAndClearings(newMap, {
+        shortBranches: 120,
+        longBranches: 12,
+        longMin: 4,
+        longMax: 9,
+        clearings: 5,
+      });
+
+      placeBirds(newMap, width, height);
+
+      return newMap;
+    }
+
+    function placeBirds(maze, width, height) {
+      birdPositions = [];
+
+      const isForbidden = (x, y) => {
+        if (x === startPos.x && y === startPos.y) return true;
+        if (x === exitPos.x && y === exitPos.y) return true;
+        if (giftPositions.some((g) => g.x === x && g.y === y)) return true;
+        return false;
+      };
+
+      const dirs4 = [
+        { dx: 0, dy: 1 },
+        { dx: 1, dy: 0 },
+        { dx: 0, dy: -1 },
+        { dx: -1, dy: 0 },
+      ];
+
+      let allPaths = [];
+      let degreeMap = [];
+
+      for (let y = 0; y < height; y++) {
+        degreeMap[y] = [];
+        for (let x = 0; x < width; x++) {
+          const t = maze[y][x];
+          if (t === PATH || t === START) {
+            allPaths.push({ x, y });
+            let deg = 0;
+            dirs4.forEach(({ dx, dy }) => {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+                const nt = maze[ny][nx];
+                if (nt !== WALL) deg++;
+              }
+            });
+            degreeMap[y][x] = deg;
+          } else {
+            degreeMap[y][x] = 0;
+          }
+        }
+      }
+
+      const midXmin = Math.floor(width * 0.2);
+      const midXmax = Math.floor(width * 0.8);
+      const midYmin = Math.floor(height * 0.2);
+      const midYmax = Math.floor(height * 0.8);
+
+      const crossroadCells = allPaths.filter((c) => {
+        const d = degreeMap[c.y][c.x];
+        return (
+          d >= 3 &&
+          c.x >= midXmin &&
+          c.x <= midXmax &&
+          c.y >= midYmin &&
+          c.y <= midYmax
+        );
+      });
+
+      function cellsNear(point, maxDist = 2) {
+        return allPaths.filter((c) => {
+          const dist = Math.abs(c.x - point.x) + Math.abs(c.y - point.y);
+          return dist > 0 && dist <= maxDist;
+        });
+      }
+
+      let nearGifts = [];
+      giftPositions.forEach((g) => {
+        nearGifts = nearGifts.concat(cellsNear(g, 2));
+      });
+
+      const nearExit = exitPos ? cellsNear(exitPos, 3) : [];
+
+      function addBirdFromList(list, usedSet) {
+        const shuffled = shuffle([...list]);
+        for (let c of shuffled) {
+          const key = `${c.x},${c.y}`;
+          if (usedSet.has(key)) continue;
+          if (isForbidden(c.x, c.y)) continue;
+
+          maze[c.y][c.x] = BIRD;
+          birdPositions.push({ x: c.x, y: c.y });
+          usedSet.add(key);
+          return true;
+        }
+        return false;
+      }
+
+      let used = new Set();
+      let birdsToPlace = NUM_BIRDS;
+
+      if (nearGifts.length > 0) {
+        addBirdFromList(nearGifts, used);
+      }
+
+      if (nearExit.length > 0) {
+        addBirdFromList(nearExit, used);
+      }
+
+      while (birdPositions.length < birdsToPlace && crossroadCells.length > 0) {
+        if (!addBirdFromList(crossroadCells, used)) break;
+      }
+
+      while (birdPositions.length < birdsToPlace && allPaths.length > 0) {
+        if (!addBirdFromList(allPaths, used)) break;
+      }
+    }
+
+    function initGame() {
+      calculateCellSize();
+
+      map = generateMaze(MAZE_WIDTH, MAZE_HEIGHT);
+      visited = map.map((row) => row.map(() => false));
+
+      wallDecorations = map.map((row) =>
+        row.map(() =>
+          Math.random() < 0.12
+            ? decorations[Math.floor(Math.random() * decorations.length)]
+            : null
+        )
+      );
+
+      players.max = {
+        x: startPos.x,
+        y: startPos.y,
+        gifts: 0,
+        icon: MAX_ICON,
+        name: "Max",
+      };
+      players.galina = {
+        x: startPos.x,
+        y: startPos.y,
+        gifts: 0,
+        icon: GALINA_ICON,
+        name: "Galina",
+      };
+
+      totalGiftsCollected = 0;
+      exitUnlocked = false;
+      updateDisplay();
+
+      gridEl.style.gridTemplateColumns = `repeat(${MAZE_WIDTH}, ${cellSize}px)`;
+      gridEl.style.gridTemplateRows = `repeat(${MAZE_HEIGHT}, ${cellSize}px)`;
+
+      revealArea(players.max.x, players.max.y);
+      draw();
+
+      isGameActive = true;
+      winScreenEl.style.display = "none";
+
+      answerInputEl.onkeypress = function (e) {
+        if (e.key === "Enter") {
+          checkAnswer();
+        }
+      };
+    }
+
+    function updateDisplay() {
+      maxGiftsEl.textContent = players.max.gifts;
+      galinaGiftsEl.textContent = players.galina.gifts;
+      exitStatusEl.textContent = exitUnlocked ? "🔓" : "🔒";
+      giftsNeededEl.textContent = `(${totalGiftsCollected}/${NUM_GIFTS})`;
+    }
+
+    function toggleFog() {
+      fogEnabled = !fogEnabled;
+      fogToggleEl.textContent = fogEnabled ? "Fog: Aan" : "Fog: Uit";
+      fogToggleEl.classList.toggle("active", fogEnabled);
+      draw();
+    }
+
+    function draw() {
+      gridEl.innerHTML = "";
+      const fragment = document.createDocumentFragment();
+
+      const fontSize = Math.max(8, cellSize - 4);
+      const smallFontSize = Math.max(6, cellSize - 8);
+
+      for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[0].length; x++) {
+          const cellDiv = document.createElement("div");
+          cellDiv.classList.add("cell");
+          cellDiv.style.width = cellSize + "px";
+          cellDiv.style.height = cellSize + "px";
+          cellDiv.style.fontSize = fontSize + "px";
+
+          const cellType = map[y][x];
+
+          if (cellType === PATH || cellType === START || cellType === BIRD) {
+            cellDiv.classList.add("path");
+          }
+
+          if (cellType === GOAL) {
+            cellDiv.classList.add("path");
+            cellDiv.textContent = GIFT_ICON;
+          }
+
+          if (cellType === EXIT) {
+            cellDiv.classList.add("path");
+            cellDiv.classList.add("exit-cell");
+            cellDiv.textContent = EXIT_ICON;
+          }
+
+          if (cellType === BIRD) {
+            cellDiv.textContent = BIRD_ICON;
+          }
+
+          if (cellType === WALL && wallDecorations[y][x]) {
+            cellDiv.classList.add("wall-decoration");
+            cellDiv.setAttribute("data-decoration", wallDecorations[y][x]);
+            cellDiv.style.setProperty("--deco-size", smallFontSize + "px");
+          }
+
+          const maxHere = players.max.x === x && players.max.y === y;
+          const galinaHere = players.galina.x === x && players.galina.y === y;
+
+          if (maxHere && galinaHere) {
+            cellDiv.classList.add("player");
+            cellDiv.textContent = MAX_ICON + GALINA_ICON;
+            cellDiv.style.fontSize = fontSize * 0.6 + "px";
+          } else if (galinaHere) {
+            cellDiv.classList.add("player");
+            cellDiv.textContent = GALINA_ICON;
+          } else if (maxHere) {
+            cellDiv.classList.add("player");
+            cellDiv.textContent = MAX_ICON;
+          }
+
+          if (fogEnabled && !visited[y][x]) {
+            cellDiv.classList.add("fog");
+          } else if (visited[y][x]) {
+            cellDiv.classList.add("visited");
+          }
+
+          fragment.appendChild(cellDiv);
+        }
+      }
+      gridEl.appendChild(fragment);
+    }
+
+    function revealArea(x, y) {
+      visited[y][x] = true;
+      const directions = [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ];
+      directions.forEach(([dx, dy]) => {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (ny >= 0 && ny < map.length && nx >= 0 && nx < map[0].length) {
+          visited[ny][nx] = true;
+        }
+      });
+    }
+
+    function triggerBounce() {
+      const playerCells = gridEl.querySelectorAll(".cell.player");
+      playerCells.forEach((cell) => {
+        cell.classList.add("moving");
+        setTimeout(() => {
+          cell.classList.remove("moving");
+        }, 150);
+      });
+    }
+
+    function movePlayer(playerKey, dx, dy) {
+      if (!isGameActive) return;
+
+      const player = players[playerKey];
+      const newX = player.x + dx;
+      const newY = player.y + dy;
+
+      if (newY < 0 || newY >= map.length || newX < 0 || newX >= map[0].length)
+        return;
+      if (map[newY][newX] === WALL) return;
+
+      player.x = newX;
+      player.y = newY;
+      revealArea(player.x, player.y);
+
+      const cellType = map[newY][newX];
+
+      if (cellType === GOAL) {
+        map[newY][newX] = PATH;
+        player.gifts++;
+        totalGiftsCollected++;
+        if (totalGiftsCollected >= NUM_GIFTS) exitUnlocked = true;
+        updateDisplay();
+      }
+
+      if (cellType === EXIT) {
+        draw();
+        triggerBounce();
+        if (exitUnlocked) {
+          setTimeout(() => winGame(player), 300);
+          return;
+        }
+      } else if (cellType === BIRD) {
+        currentBirdPos = { x: newX, y: newY };
+        currentPlayer = playerKey;
+        draw();
+        triggerBounce();
+        setTimeout(showQuestion, 300);
+        return;
+      } else {
+        draw();
+        triggerBounce();
+      }
+    }
+
+    function showQuestion() {
+      if (questions.length === 0) {
+        if (currentBirdPos) {
+          map[currentBirdPos.y][currentBirdPos.x] = PATH;
+          currentBirdPos = null;
+        }
+        draw();
+        return;
+      }
+
+      isGameActive = false;
+      currentQuestionIndex = Math.floor(Math.random() * questions.length);
+      const q = questions[currentQuestionIndex];
+
+      const player = players[currentPlayer];
+      askingPlayerEl.textContent = `${player.icon} ${player.name} moet antwoorden:`;
+      questionTextEl.textContent = q.question;
+      answerInputEl.value = "";
+      messageAreaEl.textContent = "";
+
+      overlayEl.style.display = "flex";
+      answerInputEl.focus();
+    }
+
+    function checkAnswer() {
+      const rawInput = answerInputEl.value.trim();
+      const userAnswer = rawInput.toLowerCase();
+      const correctAnswer = questions[currentQuestionIndex].answer.toLowerCase();
+
+      let isCorrect = false;
+
+      if (userAnswer === correctAnswer) {
+        isCorrect = true;
+      }
+
+      if (!isCorrect && (userAnswer === "a" || userAnswer === "b")) {
+        const qText = questions[currentQuestionIndex].question.toLowerCase();
+        const aIndex = qText.indexOf("a:");
+        const bIndex = qText.indexOf("b:");
+
+        if (aIndex !== -1 && bIndex !== -1) {
+          const aText = qText.slice(aIndex + 2, bIndex).trim();
+          const bText = qText.slice(bIndex + 2).trim();
+
+          if (userAnswer === "a" && correctAnswer === aText) isCorrect = true;
+          if (userAnswer === "b" && correctAnswer === bText) isCorrect = true;
+        }
+      }
+
+      if (isCorrect) {
+        messageAreaEl.style.color = "#22c55e";
+        messageAreaEl.textContent = "Goed zo! De vogel vliegt weg.";
+
+        if (currentBirdPos) {
+          map[currentBirdPos.y][currentBirdPos.x] = PATH;
+          currentBirdPos = null;
         }
 
-        #side-panel {
-            width: 280px;
-            max-width: 100%;
-            padding: 12px 14px;
-            background: rgba(0,0,0,0.35);
-            border-right: 4px solid #1e3318;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+        setTimeout(() => {
+          overlayEl.style.display = "none";
+          draw();
+          isGameActive = true;
+          currentPlayer = null;
+        }, 1200);
+      } else {
+        messageAreaEl.style.color = "#ef4444";
+        messageAreaEl.textContent = "Fout! Terug naar de start.";
+        setTimeout(() => {
+          overlayEl.style.display = "none";
+          players[currentPlayer].x = startPos.x;
+          players[currentPlayer].y = startPos.y;
+          currentBirdPos = null;
+          currentPlayer = null;
+          revealArea(startPos.x, startPos.y);
+          draw();
+          isGameActive = true;
+        }, 1800);
+      }
+    }
 
-        h1 {
-            color: #86efac;
-            margin: 0 0 4px;
-            font-size: 1.6rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        }
+    function winGame(winningPlayer) {
+      isGameActive = false;
+      winnersDisplayEl.textContent = winningPlayer.icon;
+      winMessageEl.textContent = `${winningPlayer.name} heeft de uitgang gevonden!`;
+      winScreenEl.style.display = "flex";
+    }
 
-        #subtitle {
-            font-size: 0.8rem;
-            opacity: 0.9;
-            margin-bottom: 6px;
-        }
+    function resetGame() {
+      initGame();
+    }
 
-        #top-bar {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            background: rgba(0,0,0,0.25);
-            padding: 8px 10px;
-            border-radius: 8px;
-        }
+    function regenerateMaze() {
+      initGame();
+    }
 
-        .top-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-        }
+    function openSettings() {
+      renderQuestionList();
+      if (giftZone1Select) giftZone1Select.value = giftZone1;
+      if (giftZone2Select) giftZone2Select.value = giftZone2;
+      settingsOverlayEl.style.display = "flex";
+    }
 
-        .player-score {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 0.95rem;
-        }
+    function closeSettings() {
+      settingsOverlayEl.style.display = "none";
+    }
 
-        .player-score .count {
-            color: #ffd700;
-            font-weight: bold;
-        }
+    function renderQuestionList() {
+      questionListEl.innerHTML = "";
+      questions.forEach((q, index) => {
+        const item = document.createElement("div");
+        item.className = "question-item";
+        item.innerHTML = `
+                <span class="q-text">${q.question}</span>
+                <span class="q-answer">${q.answer}</span>
+                <button class="delete-btn" onclick="deleteQuestion(${index})">✕</button>
+            `;
+        questionListEl.appendChild(item);
+      });
+    }
 
-        .top-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 4px;
-        }
+    function deleteQuestion(index) {
+      questions.splice(index, 1);
+      renderQuestionList();
+    }
 
-        .small-btn {
-            background-color: rgba(255,255,255,0.15);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.3);
-            padding: 5px 10px;
-            font-size: 0.8rem;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-        }
+    function addQuestion() {
+      const qInput = document.getElementById("new-question");
+      const aInput = document.getElementById("new-answer");
 
-        .small-btn:hover {
-            background-color: rgba(255,255,255,0.25);
-            transform: translateY(-1px);
-        }
+      const question = qInput.value.trim();
+      const answer = aInput.value.trim();
 
-        .small-btn.active {
-            background-color: var(--highlight);
-            border-color: var(--highlight);
-        }
+      if (question && answer) {
+        questions.push({ question, answer: answer.toLowerCase() });
+        qInput.value = "";
+        aInput.value = "";
+        renderQuestionList();
+      }
+    }
 
-        .instructions {
-            color: #dcfce7;
-            padding: 8px 10px;
-            background: rgba(0,0,0,0.25);
-            border-radius: 8px;
-            font-size: 0.8rem;
-        }
+    function saveAndRestart() {
+      if (giftZone1Select && giftZone2Select) {
+        giftZone1 = giftZone1Select.value;
+        giftZone2 = giftZone2Select.value;
+      }
+      closeSettings();
+      initGame();
+    }
 
-        .controls-row {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-            margin-bottom: 4px;
-        }
+    document.addEventListener("keydown", (e) => {
+      if (
+        settingsOverlayEl.style.display === "flex" ||
+        overlayEl.style.display === "flex" ||
+        document.activeElement === answerInputEl
+      ) {
+        return;
+      }
 
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+      if (
+        [
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          "KeyW",
+          "KeyA",
+          "KeyS",
+          "KeyD",
+        ].indexOf(e.code) > -1
+      ) {
+        e.preventDefault();
+      }
 
-        kbd {
-            background: rgba(255,255,255,0.2);
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-family: monospace;
-            font-size: 0.75rem;
-        }
+      if (!isGameActive) return;
 
-        #game-container {
-            position: relative;
-            flex: 1;
-            margin: 8px;
-            padding: 8px;
-            background: #3a5a2d;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-            border: 4px solid #1e3318;
-            overflow: auto;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+      switch (e.code) {
+        case "ArrowUp":
+          movePlayer("max", 0, -1);
+          break;
+        case "ArrowDown":
+          movePlayer("max", 0, 1);
+          break;
+        case "ArrowLeft":
+          movePlayer("max", -1, 0);
+          break;
+        case "ArrowRight":
+          movePlayer("max", 1, 0);
+          break;
+      }
 
-        #maze-grid {
-            display: grid;
-            background-color: var(--wall-color);
-            border: 3px solid var(--wall-border);
-        }
+      switch (e.code) {
+        case "KeyW":
+          movePlayer("galina", 0, -1);
+          break;
+        case "KeyS":
+          movePlayer("galina", 0, 1);
+          break;
+        case "KeyA":
+          movePlayer("galina", -1, 0);
+          break;
+        case "KeyD":
+          movePlayer("galina", 1, 0);
+          break;
+      }
+    });
 
-        .cell {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: var(--wall-color);
-            position: relative;
-            user-select: none;
-        }
+    window.addEventListener("resize", () => {
+      calculateCellSize();
+      gridEl.style.gridTemplateColumns = `repeat(${MAZE_WIDTH}, ${cellSize}px)`;
+      gridEl.style.gridTemplateRows = `repeat(${MAZE_HEIGHT}, ${cellSize}px)`;
+      draw();
+    });
 
-        .cell:not(.path):not(.fog) {
-            background-image: radial-gradient(circle, #3e662f 20%, #2d4a22 80%);
-            border: 1px solid #1e3318;
-        }
-
-        .cell.wall-decoration::before {
-            content: attr(data-decoration);
-            position: absolute;
-            opacity: 0.8;
-        }
-
-        .cell.path {
-            background-color: var(--path-color);
-            border: none;
-        }
-
-        .cell.visited {
-            background-color: var(--visited-path-color);
-        }
-
-        .cell.fog {
-            background-color: var(--fog-color) !important;
-            color: transparent !important;
-            border: none !important;
-            background-image: none !important;
-        }
-
-        .cell.fog::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background-color: var(--fog-color);
-            z-index: 10;
-        }
-
-        .cell.fog.exit-cell {
-            border: none !important;
-        }
-
-        .cell.player {
-            z-index: 5;
-        }
-
-        .cell.exit-cell {
-            background-color: #4a7c3f !important;
-            border: 2px dashed #86efac !important;
-        }
-
-        .cell.player.moving {
-            animation: player-bounce 0.15s ease-out;
-        }
-
-        @keyframes player-bounce {
-            from { transform: translateY(0); }
-            to { transform: translateY(-3px); }
-        }
-
-        #overlay, #settings-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-            backdrop-filter: blur(5px);
-        }
-
-        .overlay-content {
-            background: #fff;
-            color: #333;
-            padding: 25px;
-            border-radius: 12px;
-            max-width: 90%;
-            width: 450px;
-            text-align: center;
-            box-shadow: 0 0 30px rgba(255, 159, 28, 0.4);
-            border: 4px solid var(--highlight);
-            position: relative;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .bird-icon {
-            font-size: 50px;
-            display: block;
-            margin-bottom: 8px;
-            animation: bounce 1s infinite alternate;
-        }
-
-        @keyframes bounce {
-            from { transform: translateY(0); }
-            to { transform: translateY(-8px); }
-        }
-
-        .overlay-content h2 {
-            color: #d97706;
-            margin-top: 0;
-            margin-bottom: 10px;
-        }
-
-        .overlay-content .asking-player {
-            font-size: 1rem;
-            margin-bottom: 8px;
-            color: #666;
-        }
-
-        input[type="text"] {
-            padding: 10px;
-            font-size: 16px;
-            width: 90%;
-            margin: 10px 0;
-            border: 2px solid #cbd5e1;
-            border-radius: 6px;
-            outline: none;
-        }
-
-        input[type="text"]:focus {
-            border-color: var(--highlight);
-        }
-
-        button {
-            background-color: var(--highlight);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: transform 0.1s, background-color 0.2s;
-        }
-
-        button:hover {
-            background-color: #e88b0b;
-            transform: scale(1.02);
-        }
-
-        #message-area {
-            min-height: 20px;
-            margin-top: 10px;
-            font-weight: bold;
-            font-size: 16px;
-        }
-
-        #win-screen {
-            display: none;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(26, 26, 46, 0.95);
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 50;
-            color: white;
-            border-radius: 8px;
-        }
-
-        #win-screen h2 {
-            font-size: 2em;
-            color: #ffd700;
-            margin-bottom: 15px;
-        }
-
-        #win-screen .winners {
-            font-size: 2.5em;
-            margin-bottom: 15px;
-        }
-
-        #settings-content { text-align: left; }
-        #settings-content h2 { text-align: center; }
-
-        .question-list {
-            max-height: 300px;
-            overflow-y: auto;
-            margin: 15px 0;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-        }
-
-        .question-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .question-item:last-child { border-bottom: none; }
-
-        .question-item .q-text { flex: 1; }
-
-        .question-item .q-answer {
-            color: #22c55e;
-            font-weight: bold;
-            min-width: 80px;
-        }
-
-        .question-item .delete-btn {
-            background: #ef4444;
-            padding: 5px 10px;
-            font-size: 12px;
-        }
-
-        .add-question-form {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 2px solid #eee;
-        }
-
-        .add-question-form input { margin: 0; }
-
-        .settings-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 15px;
-        }
-
-        .settings-buttons .cancel-btn { background: #6b7280; }
-
-        .gift-settings {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 2px solid #eee;
-            font-size: 0.9rem;
-        }
-
-        .gift-row { margin-top: 6px; }
-
-        .gift-row label {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .gift-row select {
-            flex: 1;
-            padding: 4px 6px;
-            border
+    initGame();
+  </script>
+</body>
+</html>
