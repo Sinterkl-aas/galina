@@ -21,6 +21,7 @@
 
         body {
             font-family: var(--font-main);
+            background-color: --bg-color;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
@@ -468,7 +469,7 @@
 <div id="settings-overlay">
     <div class="overlay-content" id="settings-content">
         <h2>⚙️ Vragen & Cadeaus</h2>
-        <p style="color: #666; font-size: 0.9rem;">Bewerk de vragen en kies waar de cadeaus ongeveer liggen.</p>
+        <p style="color:#666;font-size:0.9rem;">Bewerk de vragen en kies waar de cadeaus ongeveer liggen.</p>
 
         <div class="question-list" id="question-list"></div>
 
@@ -493,3 +494,785 @@
                         <option value="random">Willekeurig</option>
                     </select>
                 </label>
+            </div>
+            <div class="gift-row">
+                <label>
+                    Cadeau 2:
+                    <select id="gift-zone-2">
+                        <option value="topRight">Hoek rechtsboven</option>
+                        <option value="topLeft">Hoek linksboven</option>
+                        <option value="bottomLeft">Hoek linksonder</option>
+                        <option value="bottomRight">Hoek rechtsonder</option>
+                        <option value="center">Midden</option>
+                        <option value="random">Willekeurig</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+
+        <div class="settings-buttons">
+            <button class="cancel-btn" onclick="closeSettings()">Sluiten</button>
+            <button onclick="saveAndRestart()">Opslaan & Herstarten</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const WALL = 0;
+    const PATH = 1;
+    const START = 2;
+    const GOAL = 3;
+    const BIRD = 4;
+    const EXIT = 5;
+
+    const MAX_ICON = "🧑🏽‍🦱";
+    const GALINA_ICON = "👩🏻‍🦰";
+    const GIFT_ICON = "🎁";
+    const BIRD_ICON = "🐦";
+    const EXIT_ICON = "🚪";
+
+    const MAZE_WIDTH = 41;
+    const MAZE_HEIGHT = 25;
+    const NUM_BIRDS = 10;
+    const NUM_GIFTS = 2;
+
+    let giftZone1 = 'bottomLeft';
+    let giftZone2 = 'topRight';
+
+    // Moeilijkere vogelvragen – antwoord is altijd het woord, niet A/B
+    let questions = [
+        {
+            question: "Welke vogel is uitgeroepen tot Nationale Vogel van Nederland? A: grutto B: kievit",
+            answer: "grutto"
+        },
+        {
+            question: "Welke weidevogel laat in het voorjaar de roep 'grutto-grutto' horen? A: grutto B: wulp",
+            answer: "grutto"
+        },
+        {
+            question: "Welke meeuw is langs de Nederlandse kust de meest algemene broedvogel? A: zilvermeeuw B: stormmeeuw",
+            answer: "zilvermeeuw"
+        },
+        {
+            question: "Wat is de kleinste uilensoort die in Nederland broedt? A: steenuil B: bosuil",
+            answer: "steenuil"
+        },
+        {
+            question: "Welke specht heeft géén rood op de kruin bij het vrouwtje? A: grote bonte specht B: middelste bonte specht",
+            answer: "grote bonte specht"
+        },
+        {
+            question: "Welke vogel is een typische duinbroeder langs de Nederlandse kust? A: tapuit B: kneu",
+            answer: "tapuit"
+        },
+        {
+            question: "Welke ganssoort overwintert massaal op Nederlandse graslanden? A: kolgans B: nijlgans",
+            answer: "kolgans"
+        },
+        {
+            question: "Welke zwaluw zie je het vaakst laag boven weilanden insecten vangend? A: boerenzwaluw B: huiszwaluw",
+            answer: "boerenzwaluw"
+        },
+        {
+            question: "Welke zangvogel staat bekend om zijn gevarieerde en luide zang in struiken en hagen? A: zanglijster B: merel",
+            answer: "zanglijster"
+        },
+        {
+            question: "Welke vogel foerageert vaak onder koeien in het weiland? A: spreeuw B: veldleeuwerik",
+            answer: "spreeuw"
+        }
+    ];
+
+    const decorations = ["🌸", "🌺", "🌻", "🌼", "🌷", "🌿", "🍀", "🌱", "🍄"];
+
+    let map = [];
+    let visited = [];
+    let wallDecorations = [];
+    let cellSize = 20;
+    let fogEnabled = true;
+
+    let players = {
+        max: { x: 1, y: 1, gifts: 0, icon: MAX_ICON, name: "Max" },
+        galina: { x: 1, y: 1, gifts: 0, icon: GALINA_ICON, name: "Galina" }
+    };
+
+    let startPos = { x: 1, y: 1 };
+    let giftPositions = [];
+    let birdPositions = [];
+    let exitPos = { x: 1, y: 1 };
+    let totalGiftsCollected = 0;
+    let exitUnlocked = false;
+    let isGameActive = true;
+    let currentQuestionIndex = -1;
+    let currentBirdPos = null;
+    let currentPlayer = null;
+
+    const gridEl = document.getElementById('maze-grid');
+    const overlayEl = document.getElementById('overlay');
+    const settingsOverlayEl = document.getElementById('settings-overlay');
+    const questionTextEl = document.getElementById('question-text');
+    const answerInputEl = document.getElementById('answer-input');
+    const messageAreaEl = document.getElementById('message-area');
+    const winScreenEl = document.getElementById('win-screen');
+    const maxGiftsEl = document.getElementById('max-gifts');
+    const galinaGiftsEl = document.getElementById('galina-gifts');
+    const exitStatusEl = document.getElementById('exit-status');
+    const giftsNeededEl = document.getElementById('gifts-needed');
+    const askingPlayerEl = document.getElementById('asking-player');
+    const winnersDisplayEl = document.getElementById('winners-display');
+    const winMessageEl = document.getElementById('win-message');
+    const fogToggleEl = document.getElementById('fog-toggle');
+    const questionListEl = document.getElementById('question-list');
+    const giftZone1Select = document.getElementById('gift-zone-1');
+    const giftZone2Select = document.getElementById('gift-zone-2');
+
+    function calculateCellSize() {
+        const container = document.getElementById('game-container');
+        const availableWidth = container.clientWidth - 20;
+        const availableHeight = container.clientHeight - 20;
+
+        const cellW = Math.floor(availableWidth / MAZE_WIDTH);
+        const cellH = Math.floor(availableHeight / MAZE_HEIGHT);
+
+        cellSize = Math.max(10, Math.min(cellW, cellH, 30));
+        return cellSize;
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    // Meer korte doodlopende zijtakjes → moeilijker doolhof
+    function addShortDeadEnds(maze, maxBranches = 140) {
+        const height = maze.length;
+        const width = maze[0].length;
+        const dirs = [
+            { dx: 0, dy: 1 },
+            { dx: 1, dy: 0 },
+            { dx: 0, dy: -1 },
+            { dx: -1, dy: 0 }
+        ];
+
+        let candidates = [];
+        for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+                if (maze[y][x] === PATH) {
+                    let wallNeighbors = [];
+                    dirs.forEach(({dx, dy}) => {
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        if (maze[ny][nx] === WALL) {
+                            wallNeighbors.push({ x: nx, y: ny });
+                        }
+                    });
+                    if (wallNeighbors.length >= 2) {
+                        candidates.push({ x, y, wallNeighbors });
+                    }
+                }
+            }
+        }
+
+        shuffle(candidates);
+        let branches = 0;
+
+        for (let c of candidates) {
+            if (branches >= maxBranches) break;
+
+            const possibleWalls = c.wallNeighbors.filter(w => {
+                let pathCount = 0;
+                dirs.forEach(({dx, dy}) => {
+                    const nx = w.x + dx;
+                    const ny = w.y + dy;
+                    if (ny >= 0 && ny < height && nx >= 0 && nx < width && maze[ny][nx] === PATH) {
+                        pathCount++;
+                    }
+                });
+                // we willen een kort zijtakje aan een bestaand pad
+                return pathCount === 1;
+            });
+
+            if (possibleWalls.length === 0) continue;
+
+            const chosen = possibleWalls[Math.floor(Math.random() * possibleWalls.length)];
+            maze[chosen.y][chosen.x] = PATH;
+            branches++;
+        }
+    }
+
+    function generateMaze(width, height) {
+        let newMap = [];
+        for (let y = 0; y < height; y++) {
+            let row = [];
+            for (let x = 0; x < width; x++) {
+                row.push(WALL);
+            }
+            newMap.push(row);
+        }
+
+        const isInBounds = (x, y) => x > 0 && x < width - 1 && y > 0 && y < height - 1;
+
+        const dirs = [
+            { dx: 0, dy: -2 },
+            { dx: 2, dy: 0 },
+            { dx: 0, dy: 2 },
+            { dx: -2, dy: 0 }
+        ];
+
+        function carve(x, y) {
+            newMap[y][x] = PATH;
+            const shuffledDirs = shuffle([...dirs]);
+            for (let dir of shuffledDirs) {
+                const nx = x + dir.dx;
+                const ny = y + dir.dy;
+                if (isInBounds(nx, ny) && newMap[ny][nx] === WALL) {
+                    newMap[y + dir.dy / 2][x + dir.dx / 2] = PATH;
+                    carve(nx, ny);
+                }
+            }
+        }
+
+        carve(1, 1);
+        newMap[1][1] = START;
+        startPos = { x: 1, y: 1 };
+
+        let allPathCells = [];
+        for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+                if (newMap[y][x] === PATH) {
+                    allPathCells.push({ x, y });
+                }
+            }
+        }
+
+        giftPositions = [];
+
+        function chooseCellInZone(allCells, zoneName, usedCells) {
+            const notUsed = allCells.filter(c =>
+                !usedCells.some(u => u.x === c.x && u.y === c.y) &&
+                !(c.x === startPos.x && c.y === startPos.y)
+            );
+
+            let filtered;
+            const cornerMarginX = Math.floor(width * 0.25);
+            const cornerMarginY = Math.floor(height * 0.25);
+
+            switch (zoneName) {
+                case 'topLeft':
+                    filtered = notUsed.filter(c =>
+                        c.x >= 1 && c.x <= cornerMarginX &&
+                        c.y >= 1 && c.y <= cornerMarginY
+                    );
+                    break;
+                case 'topRight':
+                    filtered = notUsed.filter(c =>
+                        c.x >= width - cornerMarginX - 1 && c.x < width - 1 &&
+                        c.y >= 1 && c.y <= cornerMarginY
+                    );
+                    break;
+                case 'bottomLeft':
+                    filtered = notUsed.filter(c =>
+                        c.x >= 1 && c.x <= cornerMarginX &&
+                        c.y >= height - cornerMarginY - 1 && c.y < height - 1
+                    );
+                    break;
+                case 'bottomRight':
+                    filtered = notUsed.filter(c =>
+                        c.x >= width - cornerMarginX - 1 && c.x < width - 1 &&
+                        c.y >= height - cornerMarginY - 1 && c.y < height - 1
+                    );
+                    break;
+                case 'center':
+                    filtered = notUsed.filter(c =>
+                        c.x >= Math.floor(width * 0.3) && c.x <= Math.floor(width * 0.7) &&
+                        c.y >= Math.floor(height * 0.3) && c.y <= Math.floor(height * 0.7)
+                    );
+                    break;
+                case 'random':
+                default:
+                    filtered = [...notUsed];
+                    break;
+            }
+
+            if (filtered.length === 0) {
+                filtered = [...notUsed];
+            }
+            shuffle(filtered);
+            return filtered[0] || null;
+        }
+
+        let usedGiftCells = [];
+
+        const gift1 = chooseCellInZone(allPathCells, giftZone1, usedGiftCells);
+        if (gift1) {
+            newMap[gift1.y][gift1.x] = GOAL;
+            giftPositions.push({ x: gift1.x, y: gift1.y });
+            usedGiftCells.push(gift1);
+        }
+
+        const gift2 = chooseCellInZone(allPathCells, giftZone2, usedGiftCells);
+        if (gift2) {
+            newMap[gift2.y][gift2.x] = GOAL;
+            giftPositions.push({ x: gift2.x, y: gift2.y });
+            usedGiftCells.push(gift2);
+        }
+
+        let bottomRightCells = allPathCells.filter(c =>
+            c.x >= Math.floor(width * 0.6) && c.x < width - 1 &&
+            c.y >= Math.floor(height * 0.6) && c.y < height - 1 &&
+            !giftPositions.some(g => g.x === c.x && g.y === c.y)
+        );
+        shuffle(bottomRightCells);
+        if (bottomRightCells.length > 0) {
+            const exit = bottomRightCells[0];
+            newMap[exit.y][exit.x] = EXIT;
+            exitPos = { x: exit.x, y: exit.y };
+        }
+
+        // extra zijtakjes maken
+        addShortDeadEnds(newMap, 140);
+
+        let allPathsForBirds = [];
+        for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+                if (newMap[y][x] === PATH) {
+                    allPathsForBirds.push({ x, y });
+                }
+            }
+        }
+
+        let availableForBirds = allPathsForBirds.filter(c => {
+            if (c.x === startPos.x && c.y === startPos.y) return false;
+            if (giftPositions.some(g => g.x === c.x && g.y === c.y)) return false;
+            if (c.x === exitPos.x && c.y === exitPos.y) return false;
+            const dist = Math.abs(c.x - startPos.x) + Math.abs(c.y - startPos.y);
+            return dist > 4;
+        });
+
+        birdPositions = [];
+        const numZonesX = 4;
+        const numZonesY = 2;
+        const zoneWidth = Math.floor(width / numZonesX);
+        const zoneHeight = Math.floor(height / numZonesY);
+
+        let zones = [];
+        for (let zy = 0; zy < numZonesY; zy++) {
+            for (let zx = 0; zx < numZonesX; zx++) {
+                const zoneCells = availableForBirds.filter(c =>
+                    c.x >= zx * zoneWidth && c.x < (zx + 1) * zoneWidth &&
+                    c.y >= zy * zoneHeight && c.y < (zy + 1) * zoneHeight
+                );
+                if (zoneCells.length > 0) {
+                    zones.push(zoneCells);
+                }
+            }
+        }
+
+        let birdCount = 0;
+        let zoneIndex = 0;
+        while (birdCount < NUM_BIRDS && zones.length > 0) {
+            const zone = zones[zoneIndex % zones.length];
+            shuffle(zone);
+
+            const cell = zone.find(c => !birdPositions.some(b => b.x === c.x && b.y === c.y));
+            if (cell) {
+                newMap[cell.y][cell.x] = BIRD;
+                birdPositions.push({ x: cell.x, y: cell.y });
+                birdCount++;
+            }
+
+            zoneIndex++;
+            if (zoneIndex >= zones.length * 2) break;
+        }
+
+        while (birdCount < NUM_BIRDS && availableForBirds.length > 0) {
+            shuffle(availableForBirds);
+            const cell = availableForBirds.find(c => !birdPositions.some(b => b.x === c.x && b.y === c.y));
+            if (cell) {
+                newMap[cell.y][cell.x] = BIRD;
+                birdPositions.push({ x: cell.x, y: cell.y });
+                birdCount++;
+            } else {
+                break;
+            }
+        }
+
+        return newMap;
+    }
+
+    function initGame() {
+        calculateCellSize();
+
+        map = generateMaze(MAZE_WIDTH, MAZE_HEIGHT);
+        visited = map.map(row => row.map(() => false));
+
+        wallDecorations = map.map(row => row.map(() => {
+            return Math.random() < 0.12 ? decorations[Math.floor(Math.random() * decorations.length)] : null;
+        }));
+
+        players.max = { x: startPos.x, y: startPos.y, gifts: 0, icon: MAX_ICON, name: "Max" };
+        players.galina = { x: startPos.x, y: startPos.y, gifts: 0, icon: GALINA_ICON, name: "Galina" };
+
+        totalGiftsCollected = 0;
+        exitUnlocked = false;
+        updateDisplay();
+
+        gridEl.style.gridTemplateColumns = `repeat(${MAZE_WIDTH}, ${cellSize}px)`;
+        gridEl.style.gridTemplateRows = `repeat(${MAZE_HEIGHT}, ${cellSize}px)`;
+
+        revealArea(players.max.x, players.max.y);
+        draw();
+
+        isGameActive = true;
+        winScreenEl.style.display = 'none';
+
+        answerInputEl.onkeypress = function (e) {
+            if (e.key === 'Enter') {
+                checkAnswer();
+            }
+        };
+    }
+
+    function updateDisplay() {
+        maxGiftsEl.textContent = players.max.gifts;
+        galinaGiftsEl.textContent = players.galina.gifts;
+        exitStatusEl.textContent = exitUnlocked ? "🔓" : "🔒";
+        giftsNeededEl.textContent = `(${totalGiftsCollected}/${NUM_GIFTS})`;
+    }
+
+    function toggleFog() {
+        fogEnabled = !fogEnabled;
+        fogToggleEl.textContent = fogEnabled ? "Fog: Aan" : "Fog: Uit";
+        fogToggleEl.classList.toggle('active', fogEnabled);
+        draw();
+    }
+
+    function draw() {
+        gridEl.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+
+        const fontSize = Math.max(8, cellSize - 4);
+        const smallFontSize = Math.max(6, cellSize - 8);
+
+        for (let y = 0; y < map.length; y++) {
+            for (let x = 0; x < map[0].length; x++) {
+                const cellDiv = document.createElement('div');
+                cellDiv.classList.add('cell');
+                cellDiv.style.width = cellSize + 'px';
+                cellDiv.style.height = cellSize + 'px';
+                cellDiv.style.fontSize = fontSize + 'px';
+
+                const cellType = map[y][x];
+
+                if (cellType === PATH || cellType === START || cellType === BIRD) {
+                    cellDiv.classList.add('path');
+                }
+
+                if (cellType === GOAL) {
+                    cellDiv.classList.add('path');
+                    cellDiv.textContent = GIFT_ICON;
+                }
+
+                if (cellType === EXIT) {
+                    cellDiv.classList.add('path');
+                    cellDiv.classList.add('exit-cell');
+                    cellDiv.textContent = EXIT_ICON;
+                }
+
+                if (cellType === BIRD) {
+                    cellDiv.textContent = BIRD_ICON;
+                }
+
+                if (cellType === WALL && wallDecorations[y][x]) {
+                    cellDiv.classList.add('wall-decoration');
+                    cellDiv.setAttribute('data-decoration', wallDecorations[y][x]);
+                    cellDiv.style.setProperty('--deco-size', smallFontSize + 'px');
+                }
+
+                const maxHere = players.max.x === x && players.max.y === y;
+                const galinaHere = players.galina.x === x && players.galina.y === y;
+
+                if (maxHere && galinaHere) {
+                    cellDiv.classList.add('player');
+                    cellDiv.textContent = MAX_ICON + GALINA_ICON;
+                    cellDiv.style.fontSize = (fontSize * 0.6) + 'px';
+                } else if (galinaHere) {
+                    cellDiv.classList.add('player');
+                    cellDiv.textContent = GALINA_ICON;
+                } else if (maxHere) {
+                    cellDiv.classList.add('player');
+                    cellDiv.textContent = MAX_ICON;
+                }
+
+                if (fogEnabled && !visited[y][x]) {
+                    cellDiv.classList.add('fog');
+                } else if (visited[y][x]) {
+                    cellDiv.classList.add('visited');
+                }
+
+                fragment.appendChild(cellDiv);
+            }
+        }
+        gridEl.appendChild(fragment);
+    }
+
+    function revealArea(x, y) {
+        visited[y][x] = true;
+        const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        directions.forEach(([dx, dy]) => {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (ny >= 0 && ny < map.length && nx >= 0 && nx < map[0].length) {
+                visited[ny][nx] = true;
+            }
+        });
+    }
+
+    function triggerBounce() {
+        const playerCells = gridEl.querySelectorAll('.cell.player');
+        playerCells.forEach(cell => {
+            cell.classList.add('moving');
+            setTimeout(() => {
+                cell.classList.remove('moving');
+            }, 150);
+        });
+    }
+
+    function movePlayer(playerKey, dx, dy) {
+        if (!isGameActive) return;
+
+        const player = players[playerKey];
+        const newX = player.x + dx;
+        const newY = player.y + dy;
+
+        if (newY < 0 || newY >= map.length || newX < 0 || newX >= map[0].length) return;
+        if (map[newY][newX] === WALL) return;
+
+        player.x = newX;
+        player.y = newY;
+        revealArea(player.x, player.y);
+
+        const cellType = map[newY][newX];
+
+        if (cellType === GOAL) {
+            map[newY][newX] = PATH;
+            player.gifts++;
+            totalGiftsCollected++;
+            if (totalGiftsCollected >= NUM_GIFTS) exitUnlocked = true;
+            updateDisplay();
+        }
+
+        if (cellType === EXIT) {
+            draw();
+            triggerBounce();
+            if (exitUnlocked) {
+                setTimeout(() => winGame(player), 300);
+                return;
+            }
+        } else if (cellType === BIRD) {
+            currentBirdPos = { x: newX, y: newY };
+            currentPlayer = playerKey;
+            draw();
+            triggerBounce();
+            setTimeout(showQuestion, 300);
+            return;
+        } else {
+            draw();
+            triggerBounce();
+        }
+    }
+
+    function showQuestion() {
+        if (questions.length === 0) {
+            if (currentBirdPos) {
+                map[currentBirdPos.y][currentBirdPos.x] = PATH;
+                currentBirdPos = null;
+            }
+            draw();
+            return;
+        }
+
+        isGameActive = false;
+        currentQuestionIndex = Math.floor(Math.random() * questions.length);
+        const q = questions[currentQuestionIndex];
+
+        const player = players[currentPlayer];
+        askingPlayerEl.textContent = `${player.icon} ${player.name} moet antwoorden:`;
+        questionTextEl.textContent = q.question;
+        answerInputEl.value = '';
+        messageAreaEl.textContent = '';
+
+        overlayEl.style.display = 'flex';
+        answerInputEl.focus();
+    }
+
+    function checkAnswer() {
+        const rawInput = answerInputEl.value.trim();
+        const userAnswer = rawInput.toLowerCase();
+        const correctAnswer = questions[currentQuestionIndex].answer.toLowerCase();
+
+        let isCorrect = false;
+
+        if (userAnswer === correctAnswer) {
+            isCorrect = true;
+        }
+
+        if (!isCorrect && (userAnswer === "a" || userAnswer === "b")) {
+            const qText = questions[currentQuestionIndex].question.toLowerCase();
+            const aIndex = qText.indexOf("a:");
+            const bIndex = qText.indexOf("b:");
+
+            if (aIndex !== -1 && bIndex !== -1) {
+                const aText = qText.slice(aIndex + 2, bIndex).trim();
+                const bText = qText.slice(bIndex + 2).trim();
+
+                if (userAnswer === "a" && correctAnswer === aText) isCorrect = true;
+                if (userAnswer === "b" && correctAnswer === bText) isCorrect = true;
+            }
+        }
+
+        if (isCorrect) {
+            messageAreaEl.style.color = '#22c55e';
+            messageAreaEl.textContent = "Goed zo! De vogel vliegt weg.";
+
+            if (currentBirdPos) {
+                map[currentBirdPos.y][currentBirdPos.x] = PATH;
+                currentBirdPos = null;
+            }
+
+            setTimeout(() => {
+                overlayEl.style.display = 'none';
+                draw();
+                isGameActive = true;
+                currentPlayer = null;
+            }, 1200);
+        } else {
+            messageAreaEl.style.color = '#ef4444';
+            messageAreaEl.textContent = "Fout! Terug naar de start.";
+            setTimeout(() => {
+                overlayEl.style.display = 'none';
+                players[currentPlayer].x = startPos.x;
+                players[currentPlayer].y = startPos.y;
+                currentBirdPos = null;
+                currentPlayer = null;
+                revealArea(startPos.x, startPos.y);
+                draw();
+                isGameActive = true;
+            }, 1800);
+        }
+    }
+
+    function winGame(winningPlayer) {
+        isGameActive = false;
+        winnersDisplayEl.textContent = winningPlayer.icon;
+        winMessageEl.textContent = `${winningPlayer.name} heeft de uitgang gevonden!`;
+        winScreenEl.style.display = 'flex';
+    }
+
+    function resetGame() {
+        initGame();
+    }
+
+    function regenerateMaze() {
+        initGame();
+    }
+
+    function openSettings() {
+        renderQuestionList();
+        if (giftZone1Select) giftZone1Select.value = giftZone1;
+        if (giftZone2Select) giftZone2Select.value = giftZone2;
+        settingsOverlayEl.style.display = 'flex';
+    }
+
+    function closeSettings() {
+        settingsOverlayEl.style.display = 'none';
+    }
+
+    function renderQuestionList() {
+        questionListEl.innerHTML = '';
+        questions.forEach((q, index) => {
+            const item = document.createElement('div');
+            item.className = 'question-item';
+            item.innerHTML = `
+                <span class="q-text">${q.question}</span>
+                <span class="q-answer">${q.answer}</span>
+                <button class="delete-btn" onclick="deleteQuestion(${index})">✕</button>
+            `;
+            questionListEl.appendChild(item);
+        });
+    }
+
+    function deleteQuestion(index) {
+        questions.splice(index, 1);
+        renderQuestionList();
+    }
+
+    function addQuestion() {
+        const qInput = document.getElementById('new-question');
+        const aInput = document.getElementById('new-answer');
+
+        const question = qInput.value.trim();
+        const answer = aInput.value.trim();
+
+        if (question && answer) {
+            questions.push({ question, answer: answer.toLowerCase() });
+            qInput.value = '';
+            aInput.value = '';
+            renderQuestionList();
+        }
+    }
+
+    function saveAndRestart() {
+        if (giftZone1Select && giftZone2Select) {
+            giftZone1 = giftZone1Select.value;
+            giftZone2 = giftZone2Select.value;
+        }
+        closeSettings();
+        initGame();
+    }
+
+    document.addEventListener('keydown', (e) => {
+        // Typen in overlay of antwoordveld? → niet bewegen.
+        if (
+            settingsOverlayEl.style.display === 'flex' ||
+            overlayEl.style.display === 'flex' ||
+            document.activeElement === answerInputEl
+        ) {
+            return;
+        }
+
+        if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","KeyW","KeyA","KeyS","KeyD"].indexOf(e.code) > -1) {
+            e.preventDefault();
+        }
+
+        if (!isGameActive) return;
+
+        switch (e.code) {
+            case 'ArrowUp': movePlayer('max', 0, -1); break;
+            case 'ArrowDown': movePlayer('max', 0, 1); break;
+            case 'ArrowLeft': movePlayer('max', -1, 0); break;
+            case 'ArrowRight': movePlayer('max', 1, 0); break;
+        }
+
+        switch (e.code) {
+            case 'KeyW': movePlayer('galina', 0, -1); break;
+            case 'KeyS': movePlayer('galina', 0, 1); break;
+            case 'KeyA': movePlayer('galina', -1, 0); break;
+            case 'KeyD': movePlayer('galina', 1, 0); break;
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        calculateCellSize();
+        gridEl.style.gridTemplateColumns = `repeat(${MAZE_WIDTH}, ${cellSize}px)`;
+        gridEl.style.gridTemplateRows = `repeat(${MAZE_HEIGHT}, ${cellSize}px)`;
+        draw();
+    });
+
+    initGame();
+</script>
+</body>
+</html>
