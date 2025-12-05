@@ -539,7 +539,7 @@
     let giftZone1 = 'bottomLeft';
     let giftZone2 = 'topRight';
 
-    // Moeilijkere vogelvragen – antwoord is altijd het woord, niet A/B
+    // Moeilijkere vogelvragen
     let questions = [
         {
             question: "Welke vogel is uitgeroepen tot Nationale Vogel van Nederland? A: grutto B: kievit",
@@ -646,8 +646,16 @@
         return array;
     }
 
-    // Meer korte doodlopende zijtakjes → moeilijker doolhof
-    function addShortDeadEnds(maze, maxBranches = 140) {
+    // meer korte én langere zijtakjes + kleine pleintjes
+    function addDeadEndsAndClearings(maze, options = {}) {
+        const {
+            shortBranches = 120,
+            longBranches = 10,
+            longMin = 4,
+            longMax = 8,
+            clearings = 4
+        } = options;
+
         const height = maze.length;
         const width = maze[0].length;
         const dirs = [
@@ -657,6 +665,7 @@
             { dx: -1, dy: 0 }
         ];
 
+        // korte zijtakjes
         let candidates = [];
         for (let y = 1; y < height - 1; y++) {
             for (let x = 1; x < width - 1; x++) {
@@ -677,10 +686,10 @@
         }
 
         shuffle(candidates);
-        let branches = 0;
+        let shortCount = 0;
 
         for (let c of candidates) {
-            if (branches >= maxBranches) break;
+            if (shortCount >= shortBranches) break;
 
             const possibleWalls = c.wallNeighbors.filter(w => {
                 let pathCount = 0;
@@ -691,7 +700,6 @@
                         pathCount++;
                     }
                 });
-                // we willen een kort zijtakje aan een bestaand pad
                 return pathCount === 1;
             });
 
@@ -699,7 +707,81 @@
 
             const chosen = possibleWalls[Math.floor(Math.random() * possibleWalls.length)];
             maze[chosen.y][chosen.x] = PATH;
-            branches++;
+            shortCount++;
+        }
+
+        // langere dead-ends
+        shuffle(candidates);
+        let longCount = 0;
+
+        for (let c of candidates) {
+            if (longCount >= longBranches) break;
+
+            const baseWalls = dirs
+                .map(({dx, dy}) => ({ x: c.x + dx, y: c.y + dy, dx, dy }))
+                .filter(w =>
+                    w.x > 1 && w.x < width - 1 &&
+                    w.y > 1 && w.y < height - 1 &&
+                    maze[w.y][w.x] === WALL
+                );
+
+            if (baseWalls.length === 0) continue;
+
+            const start = baseWalls[Math.floor(Math.random() * baseWalls.length)];
+            let len = Math.floor(Math.random() * (longMax - longMin + 1)) + longMin;
+
+            let cx = start.x;
+            let cy = start.y;
+            let dx = start.dx;
+            let dy = start.dy;
+
+            for (let step = 0; step < len; step++) {
+                if (cx <= 1 || cx >= width - 1 || cy <= 1 || cy >= height - 1) break;
+                if (maze[cy][cx] !== WALL) break;
+
+                maze[cy][cx] = PATH;
+
+                // klein knikje
+                if (Math.random() < 0.1) {
+                    const turnDirs = dirs.filter(d => d.dx !== -dx || d.dy !== -dy);
+                    const turn = turnDirs[Math.floor(Math.random() * turnDirs.length)];
+                    dx = turn.dx;
+                    dy = turn.dy;
+                }
+
+                cx += dx;
+                cy += dy;
+            }
+
+            longCount++;
+        }
+
+        // kleine pleintjes
+        let pathCells = [];
+        for (let y = 2; y < height - 2; y++) {
+            for (let x = 2; x < width - 2; x++) {
+                if (maze[y][x] === PATH) {
+                    pathCells.push({ x, y });
+                }
+            }
+        }
+        shuffle(pathCells);
+
+        let madeClearings = 0;
+        for (let cell of pathCells) {
+            if (madeClearings >= clearings) break;
+
+            const { x, y } = cell;
+            for (let dy2 = 0; dy2 <= 1; dy2++) {
+                for (let dx2 = 0; dx2 <= 1; dx2++) {
+                    const nx = x + dx2;
+                    const ny = y + dy2;
+                    if (nx > 0 && nx < width - 1 && ny > 0 && ny < height - 1) {
+                        maze[ny][nx] = PATH;
+                    }
+                }
+            }
+            madeClearings++;
         }
     }
 
@@ -832,75 +914,120 @@
             exitPos = { x: exit.x, y: exit.y };
         }
 
-        // extra zijtakjes maken
-        addShortDeadEnds(newMap, 140);
-
-        let allPathsForBirds = [];
-        for (let y = 1; y < height - 1; y++) {
-            for (let x = 1; x < width - 1; x++) {
-                if (newMap[y][x] === PATH) {
-                    allPathsForBirds.push({ x, y });
-                }
-            }
-        }
-
-        let availableForBirds = allPathsForBirds.filter(c => {
-            if (c.x === startPos.x && c.y === startPos.y) return false;
-            if (giftPositions.some(g => g.x === c.x && g.y === c.y)) return false;
-            if (c.x === exitPos.x && c.y === exitPos.y) return false;
-            const dist = Math.abs(c.x - startPos.x) + Math.abs(c.y - startPos.y);
-            return dist > 4;
+        addDeadEndsAndClearings(newMap, {
+            shortBranches: 120,
+            longBranches: 12,
+            longMin: 4,
+            longMax: 9,
+            clearings: 5
         });
 
-        birdPositions = [];
-        const numZonesX = 4;
-        const numZonesY = 2;
-        const zoneWidth = Math.floor(width / numZonesX);
-        const zoneHeight = Math.floor(height / numZonesY);
+        placeBirds(newMap, width, height);
 
-        let zones = [];
-        for (let zy = 0; zy < numZonesY; zy++) {
-            for (let zx = 0; zx < numZonesX; zx++) {
-                const zoneCells = availableForBirds.filter(c =>
-                    c.x >= zx * zoneWidth && c.x < (zx + 1) * zoneWidth &&
-                    c.y >= zy * zoneHeight && c.y < (zy + 1) * zoneHeight
-                );
-                if (zoneCells.length > 0) {
-                    zones.push(zoneCells);
+        return newMap;
+    }
+
+    function placeBirds(maze, width, height) {
+        birdPositions = [];
+
+        const isForbidden = (x, y) => {
+            if (x === startPos.x && y === startPos.y) return true;
+            if (x === exitPos.x && y === exitPos.y) return true;
+            if (giftPositions.some(g => g.x === x && g.y === y)) return true;
+            return false;
+        };
+
+        const dirs4 = [
+            { dx: 0, dy: 1 },
+            { dx: 1, dy: 0 },
+            { dx: 0, dy: -1 },
+            { dx: -1, dy: 0 }
+        ];
+
+        let allPaths = [];
+        let degreeMap = [];
+
+        for (let y = 0; y < height; y++) {
+            degreeMap[y] = [];
+            for (let x = 0; x < width; x++) {
+                const t = maze[y][x];
+                if (t === PATH || t === START) {
+                    allPaths.push({ x, y });
+                    let deg = 0;
+                    dirs4.forEach(({dx, dy}) => {
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+                            const nt = maze[ny][nx];
+                            if (nt !== WALL) deg++;
+                        }
+                    });
+                    degreeMap[y][x] = deg;
+                } else {
+                    degreeMap[y][x] = 0;
                 }
             }
         }
 
-        let birdCount = 0;
-        let zoneIndex = 0;
-        while (birdCount < NUM_BIRDS && zones.length > 0) {
-            const zone = zones[zoneIndex % zones.length];
-            shuffle(zone);
+        const midXmin = Math.floor(width * 0.2);
+        const midXmax = Math.floor(width * 0.8);
+        const midYmin = Math.floor(height * 0.2);
+        const midYmax = Math.floor(height * 0.8);
 
-            const cell = zone.find(c => !birdPositions.some(b => b.x === c.x && b.y === c.y));
-            if (cell) {
-                newMap[cell.y][cell.x] = BIRD;
-                birdPositions.push({ x: cell.x, y: cell.y });
-                birdCount++;
-            }
+        const crossroadCells = allPaths.filter(c => {
+            const d = degreeMap[c.y][c.x];
+            return d >= 3 &&
+                c.x >= midXmin && c.x <= midXmax &&
+                c.y >= midYmin && c.y <= midYmax;
+        });
 
-            zoneIndex++;
-            if (zoneIndex >= zones.length * 2) break;
+        function cellsNear(point, maxDist = 2) {
+            return allPaths.filter(c => {
+                const dist = Math.abs(c.x - point.x) + Math.abs(c.y - point.y);
+                return dist > 0 && dist <= maxDist;
+            });
         }
 
-        while (birdCount < NUM_BIRDS && availableForBirds.length > 0) {
-            shuffle(availableForBirds);
-            const cell = availableForBirds.find(c => !birdPositions.some(b => b.x === c.x && b.y === c.y));
-            if (cell) {
-                newMap[cell.y][cell.x] = BIRD;
-                birdPositions.push({ x: cell.x, y: cell.y });
-                birdCount++;
-            } else {
-                break;
+        let nearGifts = [];
+        giftPositions.forEach(g => {
+            nearGifts = nearGifts.concat(cellsNear(g, 2));
+        });
+
+        const nearExit = exitPos ? cellsNear(exitPos, 3) : [];
+
+        function addBirdFromList(list, usedSet) {
+            const shuffled = shuffle([...list]);
+            for (let c of shuffled) {
+                const key = `${c.x},${c.y}`;
+                if (usedSet.has(key)) continue;
+                if (isForbidden(c.x, c.y)) continue;
+
+                maze[c.y][c.x] = BIRD;
+                birdPositions.push({ x: c.x, y: c.y });
+                usedSet.add(key);
+                return true;
             }
+            return false;
         }
 
-        return newMap;
+        let used = new Set();
+        let birdsToPlace = NUM_BIRDS;
+
+        if (nearGifts.length > 0) {
+            addBirdFromList(nearGifts, used);
+        }
+
+        if (nearExit.length > 0) {
+            addBirdFromList(nearExit, used);
+        }
+
+        while (birdPositions.length < birdsToPlace && crossroadCells.length > 0) {
+            if (!addBirdFromList(crossroadCells, used)) break;
+        }
+
+        while (birdPositions.length < birdsToPlace && allPaths.length > 0) {
+            if (!addBirdFromList(allPaths, used)) break;
+        }
     }
 
     function initGame() {
@@ -1139,7 +1266,7 @@
             messageAreaEl.textContent = "Goed zo! De vogel vliegt weg.";
 
             if (currentBirdPos) {
-                map[currentBirdPos.y][currentBirdPos.x] = PATH;
+                map[currentBirdPos.y][currentBirdPos.x] = PATH; // vogel verdwijnt
                 currentBirdPos = null;
             }
 
@@ -1156,7 +1283,7 @@
                 overlayEl.style.display = 'none';
                 players[currentPlayer].x = startPos.x;
                 players[currentPlayer].y = startPos.y;
-                currentBirdPos = null;
+                currentBirdPos = null; // vogel blijft in map als BIRD
                 currentPlayer = null;
                 revealArea(startPos.x, startPos.y);
                 draw();
@@ -1235,7 +1362,6 @@
     }
 
     document.addEventListener('keydown', (e) => {
-        // Typen in overlay of antwoordveld? → niet bewegen.
         if (
             settingsOverlayEl.style.display === 'flex' ||
             overlayEl.style.display === 'flex' ||
